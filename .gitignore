@@ -1,0 +1,21 @@
+# File di contesto/note locali
+PROJECT_CONTEXT.md
+# CONTEXT.md
+
+# File di ambiente e credenziali
+.env
+*.local
+
+# File generati dall'editor / OS
+.vscode/*
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
+
+# Binari, build e cache di compilazione (es. C/C++, Python, ecc.)
+*.o
+*.out
+*.exe
+build/
+bin/
+__pycache__/
