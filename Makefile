@@ -3,17 +3,17 @@ MPICXX   ?= mpicxx
 CXXFLAGS ?= -std=c++14 -O3 -march=x86-64-v3 -Wall -Wextra
 OMPFLAG  ?= -fopenmp
 
-# We will add dataset.cpp and shrink_omp.cpp as we create them
-SRC_COMMON = 
+#we'll add dataset.cpp and shrink_omp.cpp as we go
+SRC_COMMON = src/shrink_omp.cpp
 HDRS = src/common.hpp
 
 all: hclust_seq hclust_mpi
 
-# Sequential target for correctness verification (without MPI)
+#sequential test without mpi
 hclust_seq: tests/test_sequential.cpp $(SRC_COMMON) $(HDRS)
-	$(CXX) $(CXXFLAGS) -o $@ tests/test_sequential.cpp $(SRC_COMMON)
+	$(CXX) $(CXXFLAGS) $(OMPFLAG) -o $@ tests/test_sequential.cpp $(SRC_COMMON)
 
-# Hybrid MPI + OpenMP target
+#hybrid mpi + openmp build
 hclust_mpi: src/main.cpp $(SRC_COMMON) $(HDRS)
 	$(MPICXX) $(CXXFLAGS) $(OMPFLAG) -DUSE_MPI -o $@ src/main.cpp $(SRC_COMMON)
 

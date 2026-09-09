@@ -5,16 +5,18 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <omp.h>
+#include <vector>
+#include <atomic>
 
 #ifdef USE_MPI
 #include <mpi.h>    
 #endif
 
-//struct which represents an edge/merge in the dendrogram
+//represents an edge or merge in the dendrogram
 typedef struct {
-    int u;       //ID of the first cluster/point
-    int v;       //ID of the second cluster/point
-    float dist;  //distance of single linkage at which the merge occurs
+    int u;       //first cluster or point id
+    int v;       //second cluster or point id
+    float dist;  //distance when merged
 } Edge;
 
-#endif //COMMON_HPP
+#endif //common_hpp
