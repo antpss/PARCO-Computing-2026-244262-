@@ -1,0 +1,126 @@
+% \documentclass[conference]{IEEEtran}
+% \usepackage{cite}
+% \usepackage{amsmath,amssymb,amsfonts}
+% \usepackage{algorithmic}
+% \usepackage{algorithm}
+% \usepackage{graphicx}
+% \usepackage{textcomp}
+% \usepackage{xcolor}
+% \usepackage{booktabs}
+
+% \begin{document}
+
+% \title{Parallel Project Report: Parallel and Distributed Hierarchical Clustering for Large Datasets}
+
+% \author{\IEEEauthorblockN{Antonio Possemato (ID: 244262)}
+% antonio.possemato@studenti.unitn.it
+% \\Course: Introduction to Parallel Computing (2025–2026)}
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+
+\begin{document}
+
+\title{Parallel Project Report: Parallel and Distributed Hierarchical Clustering for Large Datasets}
+
+\author{\IEEEauthorblockN{Antonio Possemato (ID: 244262)}
+antonio.possemato@studenti.unitn.it
+\\Course: Introduction to Parallel Computing (2025–2026)}
+
+\maketitle
+
+\begin{abstract}
+This project presents a parallel implementation of Single Linkage Hierarchical Clustering optimized for distributed multicore architectures. We employ a hybrid MPI and OpenMP approach to overcome the $O(N^2)$ memory and computational bottlenecks of standard sequential algorithms. The local shared-memory phase leverages the SHRINK algorithm, dividing the dataset into overlapping subsets and merging partial dendrograms using a Union-Find data structure. The distributed MPI phase manages global data partitioning and communication via a binomial tree reduction. We evaluate our approach on the SUSY dataset using a distributed cluster. Results demonstrate the effectiveness of our hybrid partitioning strategy in balancing computational load and minimizing memory footprint. 
+\end{abstract}
+
+\begin{IEEEkeywords}
+Parallel Computing, MPI, OpenMP, Hierarchical Clustering, Single Linkage, SHRINK
+\end{IEEEkeywords}
+
+\section{Introduction}
+Hierarchical clustering provides detailed structural insights into datasets without requiring a predefined number of clusters. However, standard algorithms for Single Linkage, such as SLINK or Minimum Spanning Tree (MST) based approaches, require $O(N^2)$ time and up to $O(N^2)$ space. This limits their applicability on large-scale datasets like SUSY.
+
+This project aims to:
+1) Implement a highly optimized, hybrid MPI and OpenMP Single Linkage clustering kernel.
+2) Develop a multi-level data partitioning strategy to minimize memory overhead on individual nodes.
+3) Analyze performance characteristics, including strong and weak scaling, across a distributed computing cluster.
+
+\section{State of the Art}
+Standard sequential approaches for Single Linkage, such as Lance-Williams or SLINK, suffer from steep memory or computational requirements. Shared-memory parallelizations often rely on Parallel Bor\r{u}vka or algorithms like SHRINK, which effectively distribute distance calculations across threads but are limited by single-node memory capacity. Existing distributed-memory implementations frequently rely on master-worker topologies or explicit global distance matrices, introducing severe network and memory bottlenecks. Our approach mitigates these limits by avoiding the explicit $O(N^2)$ matrix construction and replacing flat communication topologies with a scalable binomial tree reduction.
+
+\section{Contribution and Methodology}
+We adopt a divide-and-conquer strategy inspired by the SHRINK algorithm [1], extended to a distributed memory environment via MPI. 
+
+\subsection{Algorithm Overview}
+Our implementation decomposes the global problem into local independent clustering tasks, followed by a hierarchical merge. Algorithm 1 illustrates the hybrid strategy. The dataset $D$ is distributed among $P$ MPI ranks. Each rank processes its local block using OpenMP to produce a partial dendrogram. Finally, MPI processes communicate their partial dendrograms to build the global tree.
+
+\begin{algorithm}
+\caption{Hybrid MPI+OpenMP Hierarchical Clustering}
+\begin{algorithmic}[1]
+\REQUIRE Dataset $D$ of size $N$, $P$ MPI ranks, $T$ OpenMP threads per rank
+\STATE \textbf{Phase 1: Block 1D Partitioning (MPI)}
+\STATE Rank $p$ loads contiguous block $D_p$ of size $B = N/P$
+\STATE \textbf{Phase 2: Local Clustering (OpenMP SHRINK)}
+\STATE Partition $D_p$ into $K$ overlapping subsets
+\STATE \textbf{\#pragma omp parallel for schedule(dynamic)}
+\STATE \textbf{for} each pair of subsets $(i, j)$ \textbf{do}
+\STATE \quad Compute partial dendrogram on $D_{p,i} \cup D_{p,j}$
+\STATE \textbf{end for}
+\STATE Merge local partial dendrograms using Union-Find to produce $T_p$
+\STATE \textbf{Phase 3: Global Merge (MPI Binomial Tree)}
+\STATE \textbf{for} $step = 0$ \textbf{to} $\lceil \log_2 P \rceil - 1$ \textbf{do}
+\STATE \quad \textbf{if} $p \pmod{2^{step+1}} == 0$ \textbf{then}
+\STATE \quad \quad \textbf{if} $p + 2^{step} < P$ \textbf{then}
+\STATE \quad \quad \quad \texttt{MPI\_Recv}($T_{recv}$ from rank $p + 2^{step}$)
+\STATE \quad \quad \quad Merge $T_p$ and $T_{recv}$ using Union-Find
+\STATE \quad \quad \textbf{end if}
+\STATE \quad \textbf{else}
+\STATE \quad \quad \texttt{MPI\_Send}($T_p$ to rank $p - 2^{step}$)
+\STATE \quad \quad \textbf{break} 
+\STATE \quad \textbf{end if}
+\STATE \textbf{end for}
+\RETURN Global dendrogram on Rank 0
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Data Partitioning and Memory Strategy}
+We implement a static 1D block partitioning strategy. The global dataset $D$ of size $N$ is divided equally among $P$ MPI processes.
+\begin{itemize}
+    \item \textbf{Memory Isolation:} Each process $p$ is allocated a disjoint data block $D_p$ of size $N/P$. This bounds the memory footprint per node to $O(N/P)$, preventing Out-Of-Memory (OOM) errors on large datasets.
+    \item \textbf{Zero-Communication Initialization:} Processes load their designated chunk directly from the storage file system, avoiding a root-scatter bottleneck.
+\end{itemize}
+
+\subsection{Shared-Memory Parallelization (OpenMP)}
+Within each MPI process, $D_p$ is processed using OpenMP. Following the SHRINK methodology, the data is partitioned into $K$ overlapping subsets.
+\begin{itemize}
+    \item \textbf{Dynamic Scheduling:} We explicitly use \texttt{\#pragma omp parallel for schedule(dynamic)}. The computational cost of clustering a subset pair $(i, j)$ varies depending on the local density of the points. Dynamic scheduling prevents load imbalance among threads.
+    \item \textbf{Thread-Safety:} Partial dendrograms are merged concurrently using a thread-safe Union-Find data structure.
+\end{itemize}
+
+\subsection{Distributed-Memory Merge (MPI)}
+To resolve the clustering tree globally, we employ a Binomial Tree Reduction.
+\begin{itemize}
+    \item \textbf{Logarithmic Scalability:} A centralized master-worker gather would create an $O(P)$ network and compute bottleneck. The binomial tree bounds the communication and merge overhead to $\lceil \log_2 P \rceil$ steps.
+    \item \textbf{Communication Protocol:} We transfer dendrogram edges using an Array of Structs (AoS) format. A custom MPI datatype (\texttt{MPI\_Type\_create\_struct}) encapsulates the edge properties (two integer IDs and one float distance). To handle variable-sized partial dendrograms dynamically, receiving nodes use \texttt{MPI\_Probe} and \texttt{MPI\_Get\_count} to allocate exact memory buffers, avoiding two-phase communication overhead.
+    \item \textbf{Union-Find Aggregation:} At each reduction step, receiving processes merge their current dendrogram $T_p$ with the incoming $T_{recv}$ using Union-Find, discarding redundant edges without recalculating distances.
+\end{itemize}
+
+\section{Experiments and System Description}
+PLACEHOLDER
+
+\section{Results and Discussion}
+PLACEHOLDER
+
+\section{Conclusions}
+PLACEHOLDER
+
+\section{References}
+[1] W. Hendrix, M. M. A. Patwary, A. Agrawal, W. Liao, and A. Choudhary, "Parallel Hierarchical Clustering on Shared Memory Platforms," ...
+
+\end{document}
