@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
 
     if (provided < MPI_THREAD_FUNNELED) {
-        fprintf(stderr, "Errore: l'implementazione MPI non supporta MPI_THREAD_FUNNELED.\n");
+        fprintf(stderr, "Error: MPI implementation does not support MPI_THREAD_FUNNELED.\n");
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     //contiguous allocation for the local block (1d flat array structure for cache efficiency)
     float* local_data = (float*)malloc(local_N * D * sizeof(float));
     if (!local_data) {
-        fprintf(stderr, "Errore: Memoria esaurita sul rank %d\n", rank);
+        fprintf(stderr, "Error: Out of memory on rank %d\n", rank);
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         local_data[i] = (float)rand() / RAND_MAX;
     }
 
-    printf("Rank %d di %d: allocati %d punti (%.2f MB).\n", 
+    printf("Rank %d of %d: allocated %d points (%.2f MB).\n", 
            rank, size, local_N, (local_N * D * sizeof(float)) / (1024.0 * 1024.0));
 
     /* 
