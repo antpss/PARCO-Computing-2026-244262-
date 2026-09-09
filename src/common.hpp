@@ -4,8 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <mpi.h>
 #include <omp.h>
+
+#ifdef USE_MPI
+#include <mpi.h>    
+#endif
 
 //struct which represents an edge/merge in the dendrogram
 typedef struct {
